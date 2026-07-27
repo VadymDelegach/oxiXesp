@@ -1,0 +1,8 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "uart_stm.c"
+    INCLUDE_DIRS
+        "."
+        "../Inc"
+)
