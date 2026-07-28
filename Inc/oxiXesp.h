@@ -8,3 +8,6 @@
 
 void oxi_err_check(const char *dscr, esp_err_t er);
 void uart_event_task(void *pvParameters);
+esp_err_t wifi_init(void);
+void register_ble_ev_hndl(void);
+void start_prov(void* pvParameter);

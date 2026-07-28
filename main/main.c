@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "nvs_flash.h"
+#include "wifi_provisioning/manager.h"
 #include "driver/uart.h"
 #include "oxiXesp.h"
 
@@ -49,6 +50,11 @@ void app_main(void)
 	}
 	xTaskCreate(uart_event_task, "uart_event_task", 4096, NULL,
 													tskIDLE_PRIORITY + 1, NULL);
+	/* Init WiFi */
+	if (wifi_init() != ESP_OK)
+		esp_restart();
+	/* Registration BLE provisioning event handler */
+	register_ble_ev_hndl();
 }
 
 void oxi_err_check(const char *dscr, esp_err_t er)

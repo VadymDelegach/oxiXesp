@@ -2,6 +2,8 @@ idf_component_register(
     SRCS
         "main.c"
         "uart_stm.c"
+        "wifi.c"
+        "ble_prov.c"
     INCLUDE_DIRS
         "."
         "../Inc"

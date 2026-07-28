@@ -8,7 +8,10 @@ extern QueueHandle_t uart0_queue;
 
 static void rx_parce(char* dat)
 {
-
+	if (strstr(dat, "+STA")) {
+		xTaskCreate(start_prov, "Start BLE", 4096, NULL, tskIDLE_PRIORITY + 1,
+																		NULL);
+	}
 }
 
 void uart_event_task(void *pvParameters)
@@ -40,6 +43,8 @@ void uart_event_task(void *pvParameters)
 			}
 			/* parcing received data */
 			rx_parce(rx);
+		} else {
+			xQueueReset(uart0_queue);
 		}
 	}
 	free(rx);
