@@ -8,5 +8,6 @@
   "idf.currentSetup": "C:\\Users\\v.delegach\\esp\\v5.3.1\\esp-idf",
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32"
-  }
+  },
+  "idf.flashType": "UART"
 }

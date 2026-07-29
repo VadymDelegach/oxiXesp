@@ -4,6 +4,8 @@ idf_component_register(
         "uart_stm.c"
         "wifi.c"
         "ble_prov.c"
+        "http.c"
+        "mqtt.c"
     INCLUDE_DIRS
         "."
         "../Inc"

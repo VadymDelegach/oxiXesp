@@ -18,6 +18,9 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
 			break;
 		case WIFI_EVENT_STA_DISCONNECTED:
 			printf("OXI:WIFI stantion disconnected\n");
+			wifi_prov_mgr_is_provisioned(&provisioned);
+			if (provisioned)
+				oxi_err_check("WIFI connect", esp_wifi_connect());
 			break;
 		case WIFI_EVENT_STA_STOP:
 			printf("OXI:WIFI stopped\n");
@@ -32,6 +35,7 @@ static void ip_event_handler(void *arg, esp_event_base_t event_base,
 		oxi_err_check("WIFI get config",esp_wifi_get_config(WIFI_IF_STA, &cfg));
 		printf("OXI:SSID:%s IP:%d.%d.%d.%d\n", (char *)cfg.sta.ssid,
 					IP2STR(&((ip_event_got_ip_t *)event_data)->ip_info.ip));
+		get_access_token();
 	}
 }
 

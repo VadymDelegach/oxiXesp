@@ -11,3 +11,5 @@ void uart_event_task(void *pvParameters);
 esp_err_t wifi_init(void);
 void register_ble_ev_hndl(void);
 void start_prov(void* pvParameter);
+void get_access_token(void);
+void mqtt_start(void);
