@@ -5,12 +5,16 @@
 #include "oxiXesp.h"
 
 extern QueueHandle_t uart0_queue;
+extern TaskHandle_t ota_task_handle;
 
 static void rx_parce(char* dat)
 {
 	if (strstr(dat, "+STA")) {
 		xTaskCreate(start_prov, "Start BLE", 4096, NULL, tskIDLE_PRIORITY + 1,
 																		NULL);
+	} else if (strstr(dat, "+SWD")) {
+		xTaskCreate(&ota_task, "ota_task", 8192, (void *)"sw", 4,
+															&ota_task_handle);
 	}
 }
 

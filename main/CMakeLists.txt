@@ -6,7 +6,17 @@ idf_component_register(
         "ble_prov.c"
         "http.c"
         "mqtt.c"
+        "ota.c"
+        "swd.c"
     INCLUDE_DIRS
         "."
         "../Inc"
+    REQUIRES
+        libswd
+        nvs_flash
+        wifi_provisioning
+        esp_http_client
+        json
+    EMBED_TXTFILES
+        "rc_oxi_cert.pem"
 )
