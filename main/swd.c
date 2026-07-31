@@ -142,6 +142,8 @@ static int stm_check_erase_pg(swd_info_t *swdinf, int pg_adr)
 		oxi_err_check("STM flash read", -1);
 		return -1;
 	}
+	/*printf("%sDebug:Check erase: %x %x %x %x\n", TAG_OXI, swdinf->dat_swd[0],
+				swdinf->dat_swd[1], swdinf->dat_swd[2], swdinf->dat_swd[3]);*/
 	if ((swdinf->dat_swd[0] & swdinf->dat_swd[1] & swdinf->dat_swd[2] &
 											swdinf->dat_swd[3]) == 0xFFFFFFFF)
 		return 1;
@@ -153,8 +155,9 @@ int get_size_stm_prog_old(swd_info_t *swdinf)
 	int offset = 0;
 	//nvs_handle_t stm_nvs;
 
-	int flash_free = stm_check_erase_pg(swdinf, BASE_STM_FLASH + offset);
-	while (flash_free != 1 && offset / STM_PAGE_SIZE < STM_END_PG) {
+	int flash_free;
+	while ((flash_free = stm_check_erase_pg(swdinf, BASE_STM_FLASH+offset)) != 1
+	&& offset / STM_PAGE_SIZE < STM_END_PG) {
 		if (flash_free == -1) {
 			//oxi_err_check("STM check erase page", -1);
 			return -1;

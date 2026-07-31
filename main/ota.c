@@ -134,37 +134,46 @@ static bool http_server_connect(upgrade_info *upinf)
 
 static bool parse_fw_info(upgrade_info *upinf)
 {
+	char tmp_str[12];
+
 	cJSON* fwinfo = cJSON_ParseWithLength(upinf->data, upinf->data_len);
 	if (fwinfo == NULL) {
 		printf("Error parsing OTA data as JSON\n");
 		cJSON_Delete(fwinfo);
 		return false;
 	}
+	//printf("%sDebug:Upgrade info:%s\n", TAG_OXI, upinf->data);
 	cJSON* shared = cJSON_GetObjectItem(fwinfo, "shared");
 	if (shared == NULL) {
 		printf("Error parsing OTA data: no \"shared\" object\n");
 		cJSON_Delete(fwinfo);
 		return false;
 	}
-	cJSON* title = cJSON_GetObjectItem(shared, "fw_title");
+	strcpy(tmp_str, upinf->type);
+	strcat(tmp_str, "_title");
+	cJSON* title = cJSON_GetObjectItem(shared, tmp_str);
 	if (title == NULL || !cJSON_IsString(title)) {
-		printf("Error parsing OTA data: no \"fw_title\" field\n");
+		printf("Error parsing OTA data: no title field\n");
 		cJSON_Delete(fwinfo);
 		return false;
 	}
 	strncpy(upinf->title, title->valuestring, TITLE_LEN);
 	upinf->title[TITLE_LEN - 1] = 0;
-	cJSON* vers = cJSON_GetObjectItem(shared, "fw_version");
+	strcpy(tmp_str, upinf->type);
+	strcat(tmp_str, "_version");
+	cJSON* vers = cJSON_GetObjectItem(shared, tmp_str);
 	if (vers == NULL || !cJSON_IsString(vers)) {
-		printf("Error parsing OTA data: no \"fw_version\" field\n");
+		printf("Error parsing OTA data: no version field\n");
 		cJSON_Delete(fwinfo);
 		return false;
 	}
 	strncpy(upinf->vers, vers->valuestring, VERSION_LEN);
 	upinf->vers[VERSION_LEN - 1] = 0;
-	cJSON* size = cJSON_GetObjectItem(shared, "fw_size");
+	strcpy(tmp_str, upinf->type);
+	strcat(tmp_str, "_size");
+	cJSON* size = cJSON_GetObjectItem(shared, tmp_str);
 	if (size == NULL || !cJSON_IsNumber(size)) {
-		printf("Error parsing OTA data: no \"fw_size\" field\n");
+		printf("Error parsing OTA data: no size field\n");
 		cJSON_Delete(fwinfo);
 		return false;
 	}
@@ -197,6 +206,7 @@ static bool get_upgrade_info(upgrade_info *upinf)
 		ota_err_msg(HTTP_NOT_INIT);
 		return false;
 	}
+	//printf("%sDebug:Upgrade info request:%s\n", TAG_OXI, upinf->getreq);
 	if (!http_server_connect(upinf))
 		return false;
 	/* Read and save JSON object with firmware info */
@@ -319,7 +329,7 @@ static void upgrade_software(upgrade_info *upinf)
 		ota_err_msg(STM_OLD_PROG_SIZE_WRONG);
 		return;
 	}
-	//printf("%sOld STM program less or equal %d bytes\n", TAG_OXI, stm_size);
+//printf("%sDebug:Old STM program less or equal %d bytes\n", TAG_OXI, stm_size);
 	/* Find flash memory partition for save STM32 software and persistent data */
 	upinf->stm_part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
 							ESP_PARTITION_SUBTYPE_DATA_UNDEFINED, "stm_upgr");
