@@ -543,3 +543,56 @@ void restartSTM(upgrade_info *upinf)
 		return;
 	}
 }
+
+#define RAM_BASE 0x20000000
+
+void dbg_write(upgrade_info *upinf)
+{
+	if (!stm_flash_unlock(&(upinf->swdinf))) {
+		printf("Flash isn't unlocked\n");
+		return;
+	}
+	printf("FLASH unlocked\n");
+	/* set PG (ProGram) bit in FLASH_CR register */
+	upinf->swdinf.dat_swd[0] = FLASH_CR_PG;
+	if (libswd_memap_write_int(upinf->swdinf.libswdctx,
+										LIBSWD_OPERATION_EXECUTE, FLASH_CR, 1,
+										upinf->swdinf.dat_swd) < 0) {
+		stm_flash_lock(&(upinf->swdinf));
+		printf("PG bit in FLASH_CR register isn't setting\n");
+		return;
+	}
+	printf("PG bit in FLASH_CR register setting\n");
+
+	/* set CSW memory access size to HalfWord and TAR to current piece */
+	if (libswd_memap_setup(upinf->swdinf.libswdctx, LIBSWD_OPERATION_EXECUTE,
+	CSW_DEB_PRIV | CSW_INC_PACKED | CSW_SIZE_HALFWORD, RAM_BASE) < 0) {
+		stm_flash_lock(&(upinf->swdinf));
+		printf("MEMAP isn't setting\n");
+		return;
+	}
+	int* ptrint;
+	libswd_ap_read(upinf->swdinf.libswdctx, LIBSWD_OPERATION_EXECUTE,
+												LIBSWD_MEMAP_CSW_ADDR, &ptrint);
+	printf("AHB-AP Control/Status Word: %#08X\n", *ptrint);
+	char dbg_dat[] = {0x11, 0x22, 0x33, 0x44};
+	/* cycle write STM flash by 4 bytes*/
+	for (int i = 0; i < 8; i += 4) {
+		if (libswd_ap_write(upinf->swdinf.libswdctx, LIBSWD_OPERATION_EXECUTE,
+		LIBSWD_MEMAP_DRW_ADDR, (int*)dbg_dat) < 0) {
+			stm_flash_lock(&(upinf->swdinf));
+			printf("Write to AHB-AP Data register is bad\n");
+			return;
+		}
+		printf("Write data: %#02X : %#02X : %#02X : %#02X\n", dbg_dat[0],
+											dbg_dat[1], dbg_dat[2], dbg_dat[3]);
+		*(int*)dbg_dat <<= 1;
+	}
+	char dbg_res[8] = {0};
+	libswd_memap_read_char(upinf->swdinf.libswdctx, LIBSWD_OPERATION_EXECUTE,
+														RAM_BASE, 8, dbg_res);
+	printf("Read data: %#02X : %#02X : %#02X : %#02X\n\
+%#02X : %#02X : %#02X : %#02X\n", dbg_res[0], dbg_res[1], dbg_res[2],
+dbg_res[3], dbg_res[4], dbg_res[5], dbg_res[6], dbg_res[7]);
+	stm_flash_lock(&(upinf->swdinf));
+}

@@ -381,3 +381,18 @@ void ota_task(void *pvParameter)
 		upgrade_software(&upgrinf);
 	upgrade_exit(&upgrinf);
 }
+
+void dbg_write(upgrade_info *upinf);
+
+void dbg_task(void *pvParam)
+{
+	upgrade_info upgrinf = {0};
+
+	if (!swd_init(&(upgrinf.swdinf))) {
+		ota_err_msg(SWD_NOT_INIT);
+		return;
+	}
+	dbg_write(&upgrinf);
+
+	upgrade_exit(&upgrinf);
+}

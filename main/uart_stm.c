@@ -15,6 +15,8 @@ static void rx_parce(char* dat)
 	} else if (strstr(dat, "+SWD")) {
 		xTaskCreate(&ota_task, "ota_task", 8192, (void *)"sw", 4,
 															&ota_task_handle);
+	} else if (strstr(dat, "+DBG")) {
+		xTaskCreate(dbg_task, "Debug Task", 4096, NULL, tskIDLE_PRIORITY + 1, NULL);
 	}
 }
 

@@ -53,3 +53,5 @@ int get_size_stm_prog_old(swd_info_t *swdinf);
 int save_stm_range(upgrade_info *upinf, int size);
 int write_stm(upgrade_info *upinf, int stm_adr, int offset, int size);
 void restartSTM(upgrade_info *upinf);
+
+void dbg_task(void *pvParam);
