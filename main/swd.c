@@ -14,6 +14,7 @@
 #define DBG_IWDG_STOP 0x100 //Debug independent watchdog stopped when core is halted
 #define CSW_INC_SINGLE 0x10
 #define REQ_AP_READ 0x9F
+#define REQ_AP_WRITE 0xBB
 #define FLASH_CR_PG 1 //Flash programming chosen
 #define FLASH_CR 0x40022010 //Flash control register
 #define CSW_INC_PACKED 0x20
@@ -202,6 +203,36 @@ static char readAP(libswd_ctx_t *swdctx, int *dat)
 		libswd_drv_miso_8(swdctx, NULL, &par, 1, 0);
 	}
 	libswd_drv_miso_trn(swdctx, LIBSWD_TURNROUND_1_VAL);
+	return ack;
+}
+
+static char writeAP(libswd_ctx_t *swdctx, int dat)
+{
+	char reqApWr = REQ_AP_WRITE;
+	char ack = 0;
+	char par = 0;
+	int tmp_int = dat;
+
+	// calculate parity bit for data
+	for(uint8_t i = 0; i < 32; ++i) {
+		par ^= tmp_int & 1;
+		tmp_int >>= 1;
+	}
+	libswd_drv_miso_trn(swdctx, LIBSWD_TURNROUND_1_VAL);
+	// repeat request and ACK while ACK = WAIT
+	do {
+		// send request
+		libswd_drv_mosi_8(swdctx, NULL, &reqApWr, LIBSWD_REQUEST_BITLEN, 0);
+		// turn for receive ACK
+		libswd_drv_mosi_trn(swdctx, LIBSWD_TURNROUND_1_VAL);
+		// receive ACK
+		libswd_drv_miso_8(swdctx, NULL, &ack, LIBSWD_ACK_BITLEN, 0);
+		// turn for send data or repeat request
+		libswd_drv_miso_trn(swdctx, LIBSWD_TURNROUND_1_VAL);
+	} while (ack == LIBSWD_ACK_WAIT_VAL);
+	// send data and parity
+	libswd_drv_mosi_32(swdctx, NULL, &dat, LIBSWD_DATA_BITLEN, 0);
+	libswd_drv_mosi_8(swdctx, NULL, &par, 1, 0);
 	return ack;
 }
 
@@ -460,19 +491,24 @@ int write_stm(upgrade_info *upinf, int stm_adr, int offset, int size)
 			return -1;
 		}
 		/* set CSW memory access size to HalfWord and TAR to current piece */
-		if (libswd_memap_setup(upinf->swdinf.libswdctx,
-							LIBSWD_OPERATION_EXECUTE,
-							CSW_DEB_PRIV | CSW_INC_PACKED | CSW_SIZE_HALFWORD,
-							stm_adr + binsize) < 0) {
+		if (libswd_memap_setup(upinf->swdinf.libswdctx,LIBSWD_OPERATION_EXECUTE,
+		CSW_DEB_PRIV | CSW_INC_SINGLE | CSW_SIZE_HALFWORD,
+		stm_adr + binsize) < 0) {
 			stm_flash_lock(&(upinf->swdinf));
 			return -1;
 		}
 		/* cycle write STM flash by 4 bytes*/
 		for (int i = 0; i < piece; i += 4) {
-			if (libswd_ap_write(upinf->swdinf.libswdctx,
-							LIBSWD_OPERATION_EXECUTE, LIBSWD_MEMAP_DRW_ADDR,
-							(int *)(upinf->data + i)) < 0) {
+			if (writeAP(upinf->swdinf.libswdctx, *(int*)(upinf->data + i)) !=
+			LIBSWD_ACK_OK_VAL) {
 				stm_flash_lock(&(upinf->swdinf));
+				printf("Write to AHB-AP Data register is bad\n");
+				return -1;
+			}
+			if (writeAP(upinf->swdinf.libswdctx, *(int*)(upinf->data + i)) !=
+			LIBSWD_ACK_OK_VAL) {
+				stm_flash_lock(&(upinf->swdinf));
+				printf("Write to AHB-AP Data register is bad\n");
 				return -1;
 			}
 		}
@@ -542,57 +578,4 @@ void restartSTM(upgrade_info *upinf)
 		//oxi_err_check("STM reset and start", -1);
 		return;
 	}
-}
-
-#define RAM_BASE 0x20000000
-
-void dbg_write(upgrade_info *upinf)
-{
-	if (!stm_flash_unlock(&(upinf->swdinf))) {
-		printf("Flash isn't unlocked\n");
-		return;
-	}
-	printf("FLASH unlocked\n");
-	/* set PG (ProGram) bit in FLASH_CR register */
-	upinf->swdinf.dat_swd[0] = FLASH_CR_PG;
-	if (libswd_memap_write_int(upinf->swdinf.libswdctx,
-										LIBSWD_OPERATION_EXECUTE, FLASH_CR, 1,
-										upinf->swdinf.dat_swd) < 0) {
-		stm_flash_lock(&(upinf->swdinf));
-		printf("PG bit in FLASH_CR register isn't setting\n");
-		return;
-	}
-	printf("PG bit in FLASH_CR register setting\n");
-
-	/* set CSW memory access size to HalfWord and TAR to current piece */
-	if (libswd_memap_setup(upinf->swdinf.libswdctx, LIBSWD_OPERATION_EXECUTE,
-	CSW_DEB_PRIV | CSW_INC_PACKED | CSW_SIZE_HALFWORD, RAM_BASE) < 0) {
-		stm_flash_lock(&(upinf->swdinf));
-		printf("MEMAP isn't setting\n");
-		return;
-	}
-	int* ptrint;
-	libswd_ap_read(upinf->swdinf.libswdctx, LIBSWD_OPERATION_EXECUTE,
-												LIBSWD_MEMAP_CSW_ADDR, &ptrint);
-	printf("AHB-AP Control/Status Word: %#08X\n", *ptrint);
-	char dbg_dat[] = {0x11, 0x22, 0x33, 0x44};
-	/* cycle write STM flash by 4 bytes*/
-	for (int i = 0; i < 8; i += 4) {
-		if (libswd_ap_write(upinf->swdinf.libswdctx, LIBSWD_OPERATION_EXECUTE,
-		LIBSWD_MEMAP_DRW_ADDR, (int*)dbg_dat) < 0) {
-			stm_flash_lock(&(upinf->swdinf));
-			printf("Write to AHB-AP Data register is bad\n");
-			return;
-		}
-		printf("Write data: %#02X : %#02X : %#02X : %#02X\n", dbg_dat[0],
-											dbg_dat[1], dbg_dat[2], dbg_dat[3]);
-		*(int*)dbg_dat <<= 1;
-	}
-	char dbg_res[8] = {0};
-	libswd_memap_read_char(upinf->swdinf.libswdctx, LIBSWD_OPERATION_EXECUTE,
-														RAM_BASE, 8, dbg_res);
-	printf("Read data: %#02X : %#02X : %#02X : %#02X\n\
-%#02X : %#02X : %#02X : %#02X\n", dbg_res[0], dbg_res[1], dbg_res[2],
-dbg_res[3], dbg_res[4], dbg_res[5], dbg_res[6], dbg_res[7]);
-	stm_flash_lock(&(upinf->swdinf));
 }
