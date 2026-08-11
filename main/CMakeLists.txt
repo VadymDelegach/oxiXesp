@@ -17,6 +17,7 @@ idf_component_register(
         wifi_provisioning
         esp_http_client
         json
+        app_update
     EMBED_TXTFILES
         "rc_oxi_cert.pem"
 )

@@ -224,3 +224,19 @@ void get_access_token(void)
 		mqtt_start();
 	}
 }
+
+void delete_access_token(void)
+{
+	nvs_handle_t access_nvs = 0;
+	esp_err_t er;
+
+	if ((er = nvs_open("access", NVS_READWRITE, &access_nvs)) != ESP_OK) {
+		oxi_err_check("NVS not open",er);
+		return;
+	}
+	oxi_err_check("Access token erase", nvs_erase_all(access_nvs));
+	oxi_err_check("Access token erase commit", nvs_commit(access_nvs));
+	nvs_close(access_nvs);
+	//printf("%sDebug:Access token deleted\n", TAG_OXI);
+	memset(access_token, 0, sizeof(access_token));
+}

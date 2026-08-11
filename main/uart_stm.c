@@ -15,6 +15,11 @@ static void rx_parce(char* dat)
 	} else if (strstr(dat, "+SWD")) {
 		xTaskCreate(&ota_task, "ota_task", 8192, (void *)"sw", 4,
 															&ota_task_handle);
+	} else if (strstr(dat, "+OTA")) {
+		xTaskCreate(&ota_task, "ota_task", 8192, (void *)"fw", 4,
+															&ota_task_handle);
+	} else if (strstr(dat, "+AcTkDel")) {
+		delete_access_token();
 	}
 }
 

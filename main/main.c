@@ -55,6 +55,7 @@ void app_main(void)
 		esp_restart();
 	/* Registration BLE provisioning event handler */
 	register_ble_ev_hndl();
+	ota_init();
 }
 
 void oxi_err_check(const char *dscr, esp_err_t er)

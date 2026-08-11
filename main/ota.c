@@ -1,4 +1,7 @@
 #include "cJSON.h"
+#include "esp_ota_ops.h"
+#include "esp_app_format.h"
+#include "esp_wifi.h"
 #include "oxiXesp.h"
 
 #define FW_REQUEST "http://rc.oxi.ua:8080/api/v1/%s/attributes\
@@ -19,11 +22,18 @@
 #define HTTP_READ_INFO_ERROR 11
 #define HTTP_NOT_CLOSE_INFO	12
 #define INFO_JSON_ERROR	13
+#define VERSION_NOT_ACTUAL 14
 #define NOT_REALLOC_URL	15
 #define SET_DATA_URL_ERROR 16
 #define SMALL_CHUNK	24
 #define NOT_REALLOC_DATA 25
+#define NOT_UPDATE_PART 26
+#define OTA_NOT_INIT 27
 #define HTTP_READ_DATA_ERROR 28
+#define OTA_DATA_SHORT 29
+#define OTA_WRITE_ERROR 30
+#define OTA_END_ERROR 31
+#define SET_NEW_BOOT_ERROR 32
 #define WRONG_OTA_TYPE 33
 #define SWD_NOT_INIT 34
 #define STM_OLD_PROG_SIZE_WRONG 35
@@ -370,6 +380,83 @@ static void upgrade_software(upgrade_info *upinf)
 	restartSTM(upinf);
 }
 
+static void upgrade_firmware(upgrade_info *upinf)
+{
+	/* Read info about running application and partition */
+	const esp_app_desc_t *running_app_desc = esp_app_get_description();
+	const esp_partition_t *running_part = esp_ota_get_running_partition();
+	/* Check new firmware version */
+	if (strstr(running_app_desc->version, upinf->vers) &&
+								!strcasestr(running_part->label, "factory")) {
+	/* If running partition is factory partition then it makes sense to upgrade
+	** regardless of received firmware info. If running firmware version is the
+	** same as received firmware info then there is no point in upgrade */
+		printf("%s%s%s%02d\n", TAG_OXI, OXI_ERR, OTA_TAG, VERSION_NOT_ACTUAL);
+		return;
+	}
+	//printf("%sOTA chunk size - %lu\n", TAG_OXI, av_mem);
+	/* Init variables for receive new application */
+	uint32_t binsize = 0;
+	esp_ota_handle_t update_hndl = 0;
+	const esp_partition_t *update_part =
+									esp_ota_get_next_update_partition(NULL);
+	if (update_part == NULL) {
+		printf("%s%s%s%02d\n", TAG_OXI, OXI_ERR, OTA_TAG, NOT_UPDATE_PART);
+		return;
+	}
+	//printf("%sOTA update partition - %s\n", TAG_OXI, update_part->label);
+	if (!get_upgrade_body(upinf)) //connect to server for get binary file
+		return;
+	if (esp_ota_begin(update_part, OTA_WITH_SEQUENTIAL_WRITES, &update_hndl)) {
+		printf("%s%s%s%02d\n", TAG_OXI, OXI_ERR, OTA_TAG, OTA_NOT_INIT);
+		esp_ota_abort(update_hndl);
+		return;
+	}
+	/* Cycle of the receive new application and write to flash */
+	do {
+		upinf->data_len = esp_http_client_read(upinf->client, upinf->data,
+																upinf->chunk);
+		if (upinf->data_len < 0) {
+			printf("%s%s%s%02d\n", TAG_OXI, OXI_ERR, OTA_TAG,
+														HTTP_READ_DATA_ERROR);
+			esp_ota_abort(update_hndl);
+			return;
+		}
+		if (upinf->data_len < sizeof(esp_image_header_t) +
+				sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t) &&
+																binsize == 0) {
+			printf("%s%s%s%02d\n", TAG_OXI, OXI_ERR, OTA_TAG, OTA_DATA_SHORT);
+			esp_ota_abort(update_hndl);
+			return;
+		}
+		//printf("%sOTA:chunk - %d; read %d bytes\n", TAG_OXI, ++i, data_len);
+		if (esp_ota_write(update_hndl, upinf->data, upinf->data_len)) {
+			printf("%s%s%s%02d\n", TAG_OXI, OXI_ERR, OTA_TAG, OTA_WRITE_ERROR);
+			esp_ota_abort(update_hndl);
+			return;
+		}
+		binsize += upinf->data_len;
+		printf("%sOTA write %lu bytes\n", TAG_OXI, binsize);
+	} while (upinf->data_len > 0 && binsize < upinf->size);
+	/* Close and free OTA resources, validation new pertition */
+	if (esp_ota_end(update_hndl) != ESP_OK) {
+		printf("%s%s%s%02d\n", TAG_OXI, OXI_ERR, OTA_TAG, OTA_END_ERROR);
+		esp_ota_abort(update_hndl);
+		return;
+	}
+	//printf("%sOTA end successfully\n", TAG_OXI);
+	/* Set new boot partition and restart */
+	if (esp_ota_set_boot_partition(update_part) != ESP_OK) {
+		printf("%s%s%s%02d\n", TAG_OXI, OXI_ERR, OTA_TAG, SET_NEW_BOOT_ERROR);
+		return;
+	}
+	printf("%sOTA OK\n", TAG_OXI);
+	/* Close connection for firmware info */
+	if (esp_http_client_close(upinf->client) != ESP_OK)
+		printf("%s%s%s%02d\n", TAG_OXI, OXI_ERR, OTA_TAG, HTTP_NOT_CLOSE_INFO);
+	esp_restart();
+}
+
 void ota_task(void *pvParameter)
 {
 	upgrade_info upgrinf = {0};
@@ -379,20 +466,34 @@ void ota_task(void *pvParameter)
 		upgrade_exit(&upgrinf);
 	if (!strcmp(upgrinf.type, "sw"))
 		upgrade_software(&upgrinf);
+	if (!strcmp(upgrinf.type, "fw"))
+		upgrade_firmware(&upgrinf);
 	upgrade_exit(&upgrinf);
 }
 
-void dbg_write(upgrade_info *upinf);
-
-void dbg_task(void *pvParam)
+void ota_init(void)
 {
-	upgrade_info upgrinf = {0};
+	esp_err_t er;
+	esp_ota_img_states_t ota_state;
+	char espvers[18] = {0};
 
-	if (!swd_init(&(upgrinf.swdinf))) {
-		ota_err_msg(SWD_NOT_INIT);
-		return;
+	const esp_partition_t *running = esp_ota_get_running_partition();
+	if ((er = esp_ota_get_state_partition(running, &ota_state)) != ESP_OK) {
+		oxi_err_check("OTA get state running partition", er);
+	} else if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
+		//diagnostic function check wifi init
+		wifi_mode_t wfmod;
+		if ((esp_wifi_get_mode(&wfmod) &&
+						esp_ota_mark_app_valid_cancel_rollback()) == ESP_OK) {
+			printf("%sOTA OK\n", TAG_OXI);
+		} else {
+			printf("%s%sOTA rollback", TAG_OXI, OXI_ERR);
+			esp_ota_mark_app_invalid_rollback_and_reboot();
+		}
 	}
-	dbg_write(&upgrinf);
-
-	upgrade_exit(&upgrinf);
+	esp_app_desc_t app;
+	esp_ota_get_partition_description(running, &app);
+	strncpy(espvers, app.version, 17);
+	espvers[18] = 0;
+	printf("%sApplication version %s verifed\n", TAG_OXI, espvers);
 }
