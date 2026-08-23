@@ -8,6 +8,7 @@ idf_component_register(
         "mqtt.c"
         "ota.c"
         "swd.c"
+        "rtc_sntp.c"
     INCLUDE_DIRS
         "."
         "../Inc"

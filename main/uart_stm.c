@@ -6,6 +6,7 @@
 
 extern QueueHandle_t uart0_queue;
 extern TaskHandle_t ota_task_handle;
+extern bool rtc_req;
 
 static void rx_parce(char* dat)
 {
@@ -13,13 +14,16 @@ static void rx_parce(char* dat)
 		xTaskCreate(start_prov, "Start BLE", 4096, NULL, tskIDLE_PRIORITY + 1,
 																		NULL);
 	} else if (strstr(dat, "+SWD")) {
-		xTaskCreate(&ota_task, "ota_task", 8192, (void *)"sw", 4,
+		xTaskCreate(ota_task, "ota_task", 8192, (void *)"sw", 4,
 															&ota_task_handle);
 	} else if (strstr(dat, "+OTA")) {
-		xTaskCreate(&ota_task, "ota_task", 8192, (void *)"fw", 4,
+		xTaskCreate(ota_task, "ota_task", 8192, (void *)"fw", 4,
 															&ota_task_handle);
 	} else if (strstr(dat, "+AcTkDel")) {
 		delete_access_token();
+	} else if (strstr(dat, "+RTC")) {
+		printf("Debug:Sync request received\n");
+		rtc_req = true;
 	}
 }
 

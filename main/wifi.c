@@ -36,6 +36,7 @@ static void ip_event_handler(void *arg, esp_event_base_t event_base,
 		printf("OXI:SSID:%s IP:%d.%d.%d.%d\n", (char *)cfg.sta.ssid,
 					IP2STR(&((ip_event_got_ip_t *)event_data)->ip_info.ip));
 		get_access_token();
+		init_sntp(); // start pool sntp service
 	}
 }
 

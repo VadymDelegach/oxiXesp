@@ -55,3 +55,4 @@ int write_stm(upgrade_info *upinf, int stm_adr, int offset, int size);
 void restartSTM(upgrade_info *upinf);
 void ota_init(void);
 void delete_access_token(void);
+void init_sntp(void);
