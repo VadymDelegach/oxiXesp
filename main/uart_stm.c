@@ -22,7 +22,7 @@ static void rx_parce(char* dat)
 	} else if (strstr(dat, "+AcTkDel")) {
 		delete_access_token();
 	} else if (strstr(dat, "+RTC")) {
-		printf("Debug:Sync request received\n");
+		//printf("OXI:RTC:2026;8;25;15;1\n");
 		rtc_req = true;
 	}
 }
