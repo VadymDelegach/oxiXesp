@@ -33,8 +33,11 @@ static void ip_event_handler(void *arg, esp_event_base_t event_base,
 	if (event_id == IP_EVENT_STA_GOT_IP) {
 		wifi_config_t cfg = {0};
 		oxi_err_check("WIFI get config",esp_wifi_get_config(WIFI_IF_STA, &cfg));
-		printf("OXI:SSID:%s IP:%d.%d.%d.%d\n", (char *)cfg.sta.ssid,
-					IP2STR(&((ip_event_got_ip_t *)event_data)->ip_info.ip));
+		/*printf("OXI:SSID:%s IP:%d.%d.%d.%d\n", (char *)cfg.sta.ssid,
+					IP2STR(&((ip_event_got_ip_t *)event_data)->ip_info.ip));*/
+		printf("%sSSID:%s\n", TAG_OXI, (char *)cfg.sta.ssid);
+		printf("%sIP:%d.%d.%d.%d\n", TAG_OXI,
+						IP2STR(&((ip_event_got_ip_t *)event_data)->ip_info.ip));
 		get_access_token();
 		init_sntp(); // start pool sntp service
 	}
