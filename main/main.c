@@ -2,12 +2,22 @@
 #include "nvs_flash.h"
 #include "wifi_provisioning/manager.h"
 #include "driver/uart.h"
+#include "driver/gpio.h"
 #include "oxiXesp.h"
 
 QueueHandle_t uart0_queue;
 
 void app_main(void)
 {
+    //Init Error LED pin (GPIO2)
+	gpio_config_t io_conf = {
+		.pin_bit_mask = 1UL << GPIO_NUM_2,
+		.mode = GPIO_MODE_OUTPUT,
+		.intr_type = GPIO_INTR_DISABLE,
+		.pull_down_en = GPIO_PULLDOWN_DISABLE,
+		.pull_up_en = GPIO_PULLUP_DISABLE
+	};
+	gpio_config(&io_conf);
 	//Initialize NVS
     esp_err_t er = nvs_flash_init();
 	if (er == ESP_ERR_NVS_NO_FREE_PAGES ||

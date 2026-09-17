@@ -2,6 +2,7 @@
 #include "esp_ota_ops.h"
 #include "esp_app_format.h"
 #include "esp_wifi.h"
+#include "driver/gpio.h"
 #include "oxiXesp.h"
 
 #define FW_REQUEST "http://rc.oxi.ua:8080/api/v1/%s/attributes\
@@ -45,9 +46,10 @@
 extern const uint8_t _binary_rc_oxi_cert_pem_start[];
 extern char access_token[];
 
-TaskHandle_t ota_task_handle = NULL;
+TaskHandle_t led_task_hndl = NULL;
 char location[1024] = {0};
 bool new_location = false;
+bool ota_success = false;
 
 static void upgrade_exit(upgrade_info *upinf)
 {
@@ -69,7 +71,9 @@ static void upgrade_exit(upgrade_info *upinf)
 	}
 	if (upinf->getreq)
 		free(upinf->getreq);
-	ota_task_handle = NULL;
+	vTaskDelete(led_task_hndl);
+	gpio_set_level(GPIO_NUM_2, ota_success);
+	ota_success = false;
 	vTaskDelete(NULL);
 }
 
@@ -378,6 +382,7 @@ static void upgrade_software(upgrade_info *upinf)
 		return;
 	}
 	restartSTM(upinf);
+	ota_success = true;
 }
 
 static void upgrade_firmware(upgrade_info *upinf)
@@ -455,12 +460,26 @@ static void upgrade_firmware(upgrade_info *upinf)
 	if (esp_http_client_close(upinf->client) != ESP_OK)
 		printf("%s%s%s%02d\n", TAG_OXI, OXI_ERR, OTA_TAG, HTTP_NOT_CLOSE_INFO);
 	esp_restart();
+	ota_success = true;
+}
+
+static void led_task(void *pvPrmtr)
+{
+	static bool led = false;
+	gpio_set_level(GPIO_NUM_2, 0);
+	while (1) {
+		vTaskDelay(500 / portTICK_PERIOD_MS);
+		led ^= 1;
+		gpio_set_level(GPIO_NUM_2, led);
+	}	
 }
 
 void ota_task(void *pvParameter)
 {
 	upgrade_info upgrinf = {0};
 
+	xTaskCreate(led_task, "Blink LED", 1024, NULL, tskIDLE_PRIORITY + 1,
+																&led_task_hndl);
 	upgrinf.type = (char *)pvParameter;
 	if (!get_upgrade_info(&upgrinf)) //can't get info about uprade
 		upgrade_exit(&upgrinf);

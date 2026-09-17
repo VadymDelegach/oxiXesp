@@ -2,6 +2,7 @@
 #include "esp_http_client.h"
 #include "cJSON.h"
 #include "hal/efuse_hal.h"
+#include "driver/gpio.h"
 #include "oxiXesp.h"
 
 #define HOST_NAME "rc.oxi.ua"
@@ -217,11 +218,12 @@ void get_access_token(void)
 	if (er) {
 		provisioning();
 	} else {
-		printf("%sAccess token - %s\n", TAG_OXI, access_token);
+		printf("%sAccToken:%s\n", TAG_OXI, access_token);
 		efuse_hal_get_mac(mac);
 		sprintf(uid, "OXI%02x%02x%02x", mac[0], mac[1], mac[2]);
-		printf("%sDebug:UID - %s\n", TAG_OXI, uid);
+		printf("%sUID:%s\n", TAG_OXI, uid);
 		mqtt_start();
+		gpio_set_level(GPIO_NUM_2, 1);
 	}
 }
 
