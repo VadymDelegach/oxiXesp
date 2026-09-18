@@ -50,6 +50,7 @@ TaskHandle_t led_task_hndl = NULL;
 char location[1024] = {0};
 bool new_location = false;
 bool ota_success = false;
+char espvers[18] = {0};
 
 static void upgrade_exit(upgrade_info *upinf)
 {
@@ -494,7 +495,6 @@ void ota_init(void)
 {
 	esp_err_t er;
 	esp_ota_img_states_t ota_state;
-	char espvers[18] = {0};
 
 	const esp_partition_t *running = esp_ota_get_running_partition();
 	if ((er = esp_ota_get_state_partition(running, &ota_state)) != ESP_OK) {
@@ -514,5 +514,6 @@ void ota_init(void)
 	esp_ota_get_partition_description(running, &app);
 	strncpy(espvers, app.version, 17);
 	espvers[18] = 0;
-	printf("%sApplication version %s verifed\n", TAG_OXI, espvers);
+	//printf("%sApplication version %s verifed\n", TAG_OXI, espvers);
+	printf("%sVERS:%s\n", TAG_OXI, espvers + strlen("oxiXesp"));
 }

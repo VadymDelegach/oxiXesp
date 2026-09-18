@@ -6,6 +6,7 @@
 
 extern QueueHandle_t uart0_queue;
 extern bool rtc_req;
+extern char espvers[];
 
 static void rx_parce(char* dat)
 {
@@ -21,6 +22,8 @@ static void rx_parce(char* dat)
 	} else if (strstr(dat, "+RTC")) {
 		//printf("OXI:RTC:2026;8;25;15;1\n");
 		rtc_req = true;
+	} else if (strstr(dat, "+VERS") && strstr(espvers, "oxiXesp")) {
+		printf("%sVERS:%s\n", TAG_OXI, espvers + strlen("oxiXesp"));
 	}
 }
 
