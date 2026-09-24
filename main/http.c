@@ -10,8 +10,8 @@
 #define PROVISION_PATH "/api/v1/provision"
 #define POST_REQUEST "{\"deviceName\":\"OXI%02x%02x%02x\",\
 \"provisionDeviceKey\":\"%s\",\"provisionDeviceSecret\":\"%s\"}"
-#define PROVISION_KEY "bkot04ca4b3b1xhhhilk"
-#define PROVISION_SECRET "srsn3w2dnr1kf8edeoi7"
+#define PROVISION_KEY "goxop06cflbibd495e5n"
+#define PROVISION_SECRET "wq41gk96go96c7381zn2"
 
 ESP_EVENT_DEFINE_BASE(PROVISION_EVENT); // event base for OXI provisioning event
 /**
@@ -46,6 +46,7 @@ static void provision_event_handler(void *args, esp_event_base_t base,
 {
 	nvs_handle_t access_nvs = 0;
 	esp_err_t er;
+	uint8_t mac[6];
 
 	esp_event_handler_instance_unregister(PROVISION_EVENT,
 								ESP_EVENT_ANY_ID, &provision_handler_instance);
@@ -63,8 +64,14 @@ static void provision_event_handler(void *args, esp_event_base_t base,
 	if (er) {
 		printf("Error (%s) saving access token!\n", esp_err_to_name(er));
 	} else {
-		printf("Access token - %s\n", access_token);
+		/*printf("Access token - %s\n", access_token);
+		mqtt_start();*/
+		printf("%sAccToken:%s\n", TAG_OXI, access_token);
+		efuse_hal_get_mac(mac);
+		sprintf(uid, "OXI%02x%02x%02x", mac[0], mac[1], mac[2]);
+		printf("%sUID:%s\n", TAG_OXI, uid);
 		mqtt_start();
+		gpio_set_level(GPIO_NUM_2, 1);
 	}
 }
 
