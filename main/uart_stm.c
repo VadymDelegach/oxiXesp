@@ -1,8 +1,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include "esp_system.h"
+#include "esp_wifi.h"
 #include "driver/uart.h"
 #include "oxiXesp.h"
+
+#define MIN_RSSI -90
+#define MAX_RSSI -30
 
 extern QueueHandle_t uart0_queue;
 extern bool rtc_req;
@@ -24,6 +28,18 @@ static void rx_parce(char* dat)
 		rtc_req = true;
 	} else if (strstr(dat, "+VERS") && strstr(espvers, "oxiXesp")) {
 		printf("%sVERS:%s\n", TAG_OXI, espvers + strlen("oxiXesp"));
+	} else if (strstr(dat, "+RSSI")) {
+		int rssi = 0;
+		esp_wifi_sta_get_rssi(&rssi);
+		if (rssi < MIN_RSSI) {
+			rssi = 0;
+		} else if (rssi > MAX_RSSI) {
+			rssi = 100;
+		} else {
+			rssi = (int)(100.0 *
+					(float)(rssi - MIN_RSSI) / (float)(MAX_RSSI - MIN_RSSI));
+		}
+		printf("%sRSSI:%d\n", TAG_OXI, rssi);
 	}
 }
 
