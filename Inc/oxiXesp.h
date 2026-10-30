@@ -56,3 +56,4 @@ void restartSTM(upgrade_info *upinf);
 void ota_init(void);
 void delete_access_token(void);
 void init_sntp(void);
+void restore_sw_task(void *stm_on);

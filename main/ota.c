@@ -4,6 +4,7 @@
 #include "esp_wifi.h"
 #include "driver/gpio.h"
 #include "oxiXesp.h"
+#include "nvs.h"
 
 #define FW_REQUEST "http://rc.oxi.ua:8080/api/v1/%s/attributes\
 ?sharedKeys=%s_checksum,%s_checksum_algorithm,%s_size,%s_title,%s_version"
@@ -45,6 +46,7 @@
 
 extern const uint8_t _binary_rc_oxi_cert_pem_start[];
 extern char access_token[];
+extern TaskHandle_t restore_sw_task_handle;
 
 TaskHandle_t led_task_hndl = NULL;
 char location[1024] = {0};
@@ -516,4 +518,61 @@ void ota_init(void)
 	espvers[18] = 0;
 	//printf("%sApplication version %s verifed\n", TAG_OXI, espvers);
 	printf("%sVERS:%s\n", TAG_OXI, espvers + strlen("oxiXesp"));
+}
+
+void restore_sw_task(void *stm_on)
+{
+	upgrade_info upgrinf = {0};
+
+	//if (upgr_ctrl_type != RESTORE_CTRL) {
+		vTaskDelay(30000 / portTICK_PERIOD_MS);
+	//}
+	//if (!(*((bool *)stm_on)) || upgr_ctrl_type == RESTORE_CTRL) {
+	if (!(*((bool *)stm_on))) {
+		//upgr_ctrl_type = NONE_UPGR;
+		//stm_work_fl = false;
+		/* Read size of the backup */
+		nvs_handle_t stm_nvs;
+		nvs_open("stm_nvs", NVS_READWRITE, &stm_nvs);
+		nvs_get_i32(stm_nvs, "stm_old_size", (int32_t *)&(upgrinf.size));
+		nvs_close(stm_nvs);
+		//printf("%s%sBackup size %d bytes\n", TAG_OXI, SWD_TAG, upgrinf.size);
+		if (upgrinf.size <= 0) {
+			ota_err_msg(STM_OLD_PROG_SIZE_WRONG);
+			goto END;
+		}
+		/* STM SWD init */
+		if (!swd_init(&(upgrinf.swdinf))) {
+			ota_err_msg(SWD_NOT_INIT);
+			goto END;
+		}
+		//printf("%s%sSWD init OK\n", TAG_OXI, SWD_TAG);
+		/* Find flash memory partition for save STM32 software and persistent data */
+		upgrinf.stm_part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
+							ESP_PARTITION_SUBTYPE_DATA_UNDEFINED, "stm_upgr");
+		if (upgrinf.stm_part == NULL) {
+			ota_err_msg(NOT_UPGRADE_PARTITION);
+			goto END;
+		}
+		//printf("%s%sPartition %s\n", TAG_OXI, SWD_TAG, upgrinf.stm_part->label);
+		/* Allocate memory for buffer between ESP partition and STM flash */
+		if ((upgrinf.data = malloc(STM_PAGE_SIZE)) == NULL) {
+			ota_err_msg(NOT_MEM_INFO);
+			goto END;
+		}
+		//printf("%s%sMemory alloc OK\n", TAG_OXI, SWD_TAG);
+		upgrinf.chunk = STM_PAGE_SIZE;
+		/* Write backup */
+		if (write_stm(&upgrinf, BASE_STM_FLASH, 0, upgrinf.size) < 0) {
+			ota_err_msg(STM_NOT_WRITE);
+			goto END;
+		}
+		/* Restart STM */
+		restartSTM(&upgrinf);
+END:
+		//stm_work_fl = true;
+		upgrade_exit(&upgrinf);
+	}
+	restore_sw_task_handle = NULL;
+	vTaskDelete(NULL);
 }

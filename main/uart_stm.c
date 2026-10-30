@@ -11,6 +11,7 @@
 extern QueueHandle_t uart0_queue;
 extern bool rtc_req;
 extern char espvers[];
+extern bool stm_on_flag;
 
 static void rx_parce(char* dat)
 {
@@ -40,6 +41,7 @@ static void rx_parce(char* dat)
 					(float)(rssi - MIN_RSSI) / (float)(MAX_RSSI - MIN_RSSI));
 		}
 		printf("%sRSSI:%d\n", TAG_OXI, rssi);
+		stm_on_flag = true;
 	}
 }
 

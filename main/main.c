@@ -6,6 +6,8 @@
 #include "oxiXesp.h"
 
 QueueHandle_t uart0_queue;
+TaskHandle_t restore_sw_task_handle = NULL;
+bool stm_on_flag = false;
 
 void app_main(void)
 {
@@ -66,6 +68,9 @@ void app_main(void)
 	/* Registration BLE provisioning event handler */
 	register_ble_ev_hndl();
 	ota_init();
+	if (restore_sw_task_handle == NULL)
+		xTaskCreate(restore_sw_task, "RestoreSW", 4096, (void *)&stm_on_flag, 4,
+													&restore_sw_task_handle);
 }
 
 void oxi_err_check(const char *dscr, esp_err_t er)
